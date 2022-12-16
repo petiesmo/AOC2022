@@ -1,8 +1,9 @@
 #AOC22D7.py
 
 from pathlib import Path 
+from pprint import pprint
 import string
-from dataclass import dataclass, Field
+from dataclasses import dataclass, field
 
 def get_data():
     fi = Path(__file__)
@@ -19,66 +20,125 @@ def is_dir(line):
 def is_file(line):
 	return True if line[0].isnumeric() else False
 
-def get_dir(drive, path):
-	idir = drive.copy()
-	for step in path:
-		idir = idir[step]
-	return idir
+@dataclass
+class File():
+	name: str
+	size: int
 
-def get_dir_size(this_dir, dir_sizes):
-	size = sum([f[0] for f in idir['files']])
-	dirs = [k for k in this_dir.keys() if k not in ['files','size']]
-	if len(dirs) > 0:
-		for idir in dirs:
-			dir_sizes = get_dir_size(idir, dir_sizes) 
-	dir_sizes.append(size)
-	return dir_sizes
-		
+@dataclass
+class Directory():
+	name: str
+	parent: None	#Directory
+	capacity: int = 0
+	files: list[File] = field(default_factory=list)
+	dirs: dict = field(default_factory=dict)
+
+	@property
+	def size(self):
+		fsize = sum([f.size for f in self.files])
+		dsize = sum([d.size for k,d in self.dirs.items()])
+		return fsize + dsize	
+
+	@property
+	def free_space(self):
+		n = self.capacity - self.size
+		return n if n>0 else 0
+
+	def add_dir(self, name):
+		self.dirs[name] = Directory(name, parent = self)
+		return self.dirs[name]
+
+	def get_dir(self, name):
+		return self.dirs[name]
+
+	def get_path(self, path:list):		
+		name = path.pop(0)
+		if len(path) == 0: return self.dirs[name]
+		self.get_path(path)
+
+	def show_tree(self, level:int=0, files=True, dirs=True):
+		if files: pprint([f'{(level+1)*4*" "}{f.name} - {f.size}' for f in self.files])
+		if dirs: pprint(f'{level*4*" "}- {self.name} (dir) - {self.size}')
+		for k,d in self.dirs.items():
+			d.show_tree(level+1, files, dirs)
+
+	def filter_tree(self, min=0, max=100, level:int=0):
+		if min <= self.size <= max:
+			pprint(f'{level*4*" "}- {self.name} (dir) - {self.size}')
+		for k,d in self.dirs.items():
+			d.filter_tree(min=min, max=max, level=level+1)
+
+	def filter_dirs(self, min=0, max=100):
+		the_list = list()
+		if min <= self.size <= max:
+			the_list.append((self.name, self.size))
+		for k,d in self.dirs.items():
+			the_list.extend(d.filter_dirs(min=min, max=max))
+		return the_list
 
 #Part A Question:
-# What is the sum of directory size of at most 100k
+# What is the sum of directory sizes of at most 100k
 
 def mainA():
-    term = get_data()
-    cur_path = []
-    drive = {}
-    cur_dir = drive
+	term = get_data()
+	parent = None
+	drive = Directory('root', parent=None, capacity=70000000)
+	drive.add_dir('/')
+	cur_dir = drive
     
-    line = next(term, None)
-    while line is not None
+	iline = 0
+	while iline < len(term):
+		line = term[iline]
+		if line is None: break
 		cmd = line.split(' ')
 		if cmd[1] == 'cd':
 			if cmd[2] == '..':
-				cur_path.pop()
-				cur_dir = get_dir(drive, cur_path)
+				cur_dir = cur_dir.parent
 			else:
-				cur_dir = cur_dir[cmd[2]]
-				cur_path.append(cmd[2])
-			line = next(term)
-		elif cmd == 'ls':
-			item = next(term, None)
-			while item is not None or not is_cmd(item):
+				cur_dir = cur_dir.get_dir(cmd[2])
+			iline += 1
+		elif cmd[1] == 'ls':
+			while True:
+				iline += 1
+				if iline == len(term): break
+				item = term[iline]
+				if item is None or is_cmd(item): break
 				if is_file(item):
-					cur_dir['files'].append(tuple(item.split(' ')))
+					fsize, fname = item.split(' ')
+					cur_dir.files.append(File(fname, int(fsize)))
 				if is_dir(item):
-					cur_dir[item] = {'files':[], 'size':0}
-				item = next(term, None)
-			line = item
-		    
-	dirsum = sum([ds for ds in get_dir_sizes(drive, []) if ds <= 100000])
-    print(f'Answer A: {dirsum}')
+					_, dname = item.split(' ')
+					cur_dir.add_dir(dname)
+	
+
+	drive.show_tree(files=False)
+	print("------------------------")
+	drive.filter_tree(max=100000)
+	print("------------------------")
+	filtered = drive.filter_dirs(max=100000)
+	pprint(filtered)
+	dirsum = sum([ds for dn,ds in filtered])
+	print(f'Answer A: {dirsum}')
+
+	return drive
 
 #Part B Question
-#In how many assignment pairs do the ranges overlap at all?
+# Total Disk space is 70000000;  Free space required: 30000000
+# Which folder should be deleted to acheive free space?
 
-def mainB():
-    pairs = get_data()
-    print(f'Answer B: {len([1])} something')
+def mainB(disk:Directory):
+	print(f'{disk.size=}')
+	print(f'{disk.free_space=}')
+	needed = 30000000 - disk.free_space
+	filtered = disk.filter_dirs(min=needed, max=disk.size)
+	print(f'{filtered=}')
+	best = min([ds for dn,ds in filtered])
+	print(f'Answer B: {best=}')
 
 if __name__ == '__main__':
-    mainA()
-    #mainB()
+    drive = mainA()
+    mainB(drive)
 
 #Result:
-#Answer A: total_score= 498
-#Answer B: total_score2 = 2581
+#Answer A: total = 1648397
+#Answer B: best = 1815525 ('nbq')
