@@ -24,6 +24,8 @@ class Message():
         self.msg_length = len(self.encrypted)
 
     def decrypt(self):
+        # 'Mixing' decryption: The byte moves from its current position, by an amount equal to its value
+        # The list is circular, and indices will 'wrap around' 
         for byte in self.encrypted:
             if byte.value == 0: continue
             cur_index = self.decrypted.index(byte)
